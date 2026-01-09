@@ -35,7 +35,7 @@ export default {
                     usage_json.msg = '✅ 成功加载请求数使用数据';
                     if (!usage_json.UpdateTime || (当前时间 - usage_json.UpdateTime) > 20 * 60 * 1000) usage_json = await 更新请求数(env);
                 }
-                return new Response(JSON.stringify(usage_json, null, 2), { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
+                return new Response(JSON.stringify(usage_json, null, 2), { headers: { 'Content-Type': 'application/json;charset=UTF-8', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
             } else if (访问路径 == 'admin' || 访问路径.startsWith('admin/')) {// 管理员面板
                 // 管理面板 - 验证Cookie
                 if (验证管理员Cookie()) {
