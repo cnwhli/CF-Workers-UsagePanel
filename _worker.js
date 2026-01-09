@@ -239,7 +239,7 @@ async function 更新请求数(env) {
 
             // 更新到该账号的 Usage 中
             usage_config_json[i].Usage = usage;
-            usage_config_json[i].最后更新时间 = Date.now();
+            usage_config_json[i].UpdateTime = Date.now();
 
             // 累加使用数据
             if (usage.success) {
@@ -666,6 +666,202 @@ async function UsagePanel管理面板(TOKEN) {
 
         a.footer:hover {
             text-decoration: underline;
+        }
+
+        /* ============ 移动端响应式布局 ============ */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            .top-nav {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .nav-btn {
+                padding: 0.5rem 0.8rem;
+                font-size: 0.8rem;
+                border-radius: 10px;
+                flex: 1;
+                min-width: calc(50% - 0.25rem);
+                justify-content: center;
+            }
+
+            .nav-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .container {
+                gap: 1.5rem;
+            }
+
+            .glass-card {
+                padding: 1.5rem;
+                border-radius: 20px;
+            }
+
+            h1, h2 {
+                font-size: 1.25rem;
+                margin-bottom: 1rem;
+            }
+
+            .module-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .add-btn {
+                width: 100%;
+                padding: 0.7rem 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+                margin-top: 1rem;
+            }
+
+            .mini-card {
+                padding: 1rem;
+                flex-direction: row;
+                justify-content: space-between;
+            }
+
+            .mini-icon {
+                font-size: 1.25rem;
+                margin-bottom: 0;
+            }
+
+            .mini-label {
+                font-size: 0.7rem;
+            }
+
+            .mini-value {
+                font-size: 1rem;
+            }
+
+            .account-item {
+                padding: 1.25rem;
+                border-radius: 16px;
+                gap: 1rem;
+            }
+
+            .account-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .delete-btn {
+                width: 100%;
+                text-align: center;
+                padding: 0.6rem 1rem;
+            }
+
+            .usage-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .percentage {
+                font-size: 1.1rem;
+            }
+
+            .modal {
+                max-width: calc(100% - 2rem);
+                padding: 1.5rem;
+                border-radius: 20px;
+            }
+
+            .modal h3 {
+                font-size: 1.1rem;
+                margin-bottom: 1.25rem;
+            }
+
+            .input-group {
+                margin-bottom: 0.875rem;
+            }
+
+            .input-group input {
+                padding: 0.65rem 0.875rem;
+                font-size: 0.9rem;
+            }
+
+            .modal-actions {
+                gap: 0.75rem;
+                margin-top: 1.25rem;
+            }
+
+            .modal-btn {
+                padding: 0.65rem;
+                font-size: 0.9rem;
+            }
+
+            .toast {
+                bottom: 1rem;
+                right: 1rem;
+                left: 1rem;
+                padding: 0.875rem 1.25rem;
+                font-size: 0.875rem;
+                border-radius: 10px;
+            }
+
+            .footer {
+                margin-top: 2rem;
+                font-size: 0.7rem;
+            }
+
+            .total-text {
+                font-size: 0.75rem;
+            }
+
+            .account-id {
+                font-size: 0.75rem;
+                word-break: break-all;
+            }
+        }
+
+        /* 超小屏幕优化 */
+        @media (max-width: 420px) {
+            body {
+                padding: 0.75rem;
+            }
+
+            .glass-card {
+                padding: 1.25rem;
+                border-radius: 18px;
+            }
+
+            h1, h2 {
+                font-size: 1.1rem;
+            }
+
+            .nav-btn {
+                min-width: 100%;
+                font-size: 0.75rem;
+            }
+
+            .stats-grid {
+                gap: 0.5rem;
+            }
+
+            .mini-card {
+                padding: 0.875rem;
+            }
+
+            .account-item {
+                padding: 1rem;
+            }
+
+            .modal {
+                padding: 1.25rem;
+            }
         }
     </style>
 </head>
