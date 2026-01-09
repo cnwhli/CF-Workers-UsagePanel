@@ -888,7 +888,7 @@ async function UsagePanel管理面板(TOKEN) {
 
     <div class="container">
         <div class="glass-card">
-            <h1>📊 使用量概览</h1>
+            <h1>Workers/Pages 请求使用情况</h1>
             <div id="summary-content">
                 <div class="loading-wrap"><div class="loading-spinner"></div></div>
             </div>
