@@ -14,21 +14,88 @@ export default {
 
             const 管理员TOKEN = await MD5MD5(面板管理员密码);
             const 临时TOKEN = await MD5MD5(url.hostname + 管理员TOKEN + UA);
-            if (区分大小写访问路径 == 'usage.json') {
+            const 管理员COOKIE = await MD5MD5(管理员TOKEN + UA);
+
+            // 验证管理员Cookie的函数
+            const 验证管理员Cookie = () => {
+                const cookies = request.headers.get('Cookie') || '';
+                const cookieMatch = cookies.match(/admin_token=([^;]+)/);
+                return cookieMatch && cookieMatch[1] === 管理员COOKIE;
+            };
+
+            if (访问路径 == 'usage.json') {// 请求数使用数据接口 Usage.json
                 let usage_json = usage_json_default;
                 if (url.searchParams.get('token') === 临时TOKEN || url.searchParams.get('token') === 管理员TOKEN) {
                     usage_json = await env.KV.get('usage.json', { type: 'json' }) || usage_json;
                     usage_json.success = true;
                     usage_json.total = (usage_json.pages || 0) + (usage_json.workers || 0);
-                    usage_json.msg = '成功加载请求数使用数据';
+                    usage_json.msg = '✅ 成功加载请求数使用数据';
                 }
                 return new Response(JSON.stringify(usage_json, null, 2), { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
-            } else if (访问路径 == 'admin' || 访问路径.startsWith('admin/')) {
-                // 管理面板
-            } else if (访问路径.startsWith('api/')) {
-                // API接口
-                if (访问路径 === 'api/login') {
+            } else if (访问路径 == 'admin' || 访问路径.startsWith('admin/') || 区分大小写访问路径 === 'config.json') {// 管理员面板
+                // 管理面板 - 验证Cookie
+                if (!验证管理员Cookie()) {
+                    return new Response(null, {
+                        status: 302,
+                        headers: { 'Location': '/' }
+                    });
+                }
 
+                if (区分大小写访问路径 === 'config.json') {
+                    // 返回配置文件
+                }
+
+                return new Response('管理面板（开发中）', {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/html; charset=UTF-8' }
+                });
+            } else if (区分大小写访问路径.startsWith('api/') && request.method === 'POST') {// API接口
+                if (区分大小写访问路径 === 'api/login') {
+                    try {
+                        const body = await request.json();
+                        const 输入密码 = body.password || '';
+                        if (输入密码 === 面板管理员密码) {
+                            // 密码正确，设置Cookie
+                            return new Response(JSON.stringify({ success: true, msg: '登录成功' }), {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': 'application/json;charset=UTF-8',
+                                    'Set-Cookie': `admin_token=${管理员COOKIE}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`
+                                }
+                            });
+                        } else {
+                            return new Response(JSON.stringify({ success: false, msg: '密码错误' }), {
+                                status: 401,
+                                headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+                            });
+                        }
+                    } catch (e) {
+                        return new Response(JSON.stringify({ success: false, msg: '请求格式错误' }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+                        });
+                    }
+                }
+
+                if (!验证管理员Cookie()) {
+                    return new Response(null, {
+                        status: 302,
+                        headers: { 'Location': '/' }
+                    });
+                }
+
+                if (区分大小写访问路径 === 'api/add') {
+                    // 增加CF账号（开发中）
+                } else if (区分大小写访问路径 === 'api/del') {
+                    // 删除CF账号（开发中）
+                } else if (区分大小写访问路径 === 'api/check') {
+                    try {
+                        const Usage_JSON = await getCloudflareUsage(url.searchParams.get('Email'), url.searchParams.get('GlobalAPIKey'), url.searchParams.get('AccountID'), url.searchParams.get('APIToken'));
+                        return new Response(JSON.stringify(Usage_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                    } catch (err) {
+                        const errorResponse = { msg: '查询请求量失败，失败原因：' + err.message, error: err.message };
+                        return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                    }
                 }
             } else if (访问路径 === 'robots.txt') return new Response('User-agent: *\nDisallow: /', { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
 
@@ -47,7 +114,7 @@ const usage_json_default = {
     workers: 0, // cf的已使用的workers请求数
     total: 0, // cf的已使用的总请求数
     max: 100000, // cf的请求数上限
-    msg: '无效TOKEN' // 备注信息
+    msg: '❌ 无效TOKEN' // 备注信息
 }
 
 async function MD5MD5(文本) {
@@ -62,6 +129,64 @@ async function MD5MD5(文本) {
     const 第二次十六进制 = 第二次哈希数组.map(字节 => 字节.toString(16).padStart(2, '0')).join('');
 
     return 第二次十六进制.toLowerCase();
+}
+
+async function getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken) {
+    const API = "https://api.cloudflare.com/client/v4";
+    const sum = (a) => a?.reduce((t, i) => t + (i?.sum?.requests || 0), 0) || 0;
+    const cfg = { "Content-Type": "application/json" };
+
+    try {
+        if (!AccountID && (!Email || !GlobalAPIKey)) return { success: false, pages: 0, workers: 0, total: 0, max: 100000 };
+
+        if (!AccountID) {
+            const r = await fetch(`${API}/accounts`, {
+                method: "GET",
+                headers: { ...cfg, "X-AUTH-EMAIL": Email, "X-AUTH-KEY": GlobalAPIKey }
+            });
+            if (!r.ok) throw new Error(`账户获取失败: ${r.status}`);
+            const d = await r.json();
+            if (!d?.result?.length) throw new Error("未找到账户");
+            const idx = d.result.findIndex(a => a.name?.toLowerCase().startsWith(Email.toLowerCase()));
+            AccountID = d.result[idx >= 0 ? idx : 0]?.id;
+        }
+
+        const now = new Date();
+        now.setUTCHours(0, 0, 0, 0);
+        const hdr = APIToken ? { ...cfg, "Authorization": `Bearer ${APIToken}` } : { ...cfg, "X-AUTH-EMAIL": Email, "X-AUTH-KEY": GlobalAPIKey };
+
+        const res = await fetch(`${API}/graphql`, {
+            method: "POST",
+            headers: hdr,
+            body: JSON.stringify({
+                query: `query getBillingMetrics($AccountID: String!, $filter: AccountWorkersInvocationsAdaptiveFilter_InputObject) {
+                    viewer { accounts(filter: {accountTag: $AccountID}) {
+                        pagesFunctionsInvocationsAdaptiveGroups(limit: 1000, filter: $filter) { sum { requests } }
+                        workersInvocationsAdaptive(limit: 10000, filter: $filter) { sum { requests } }
+                    } }
+                }`,
+                variables: { AccountID, filter: { datetime_geq: now.toISOString(), datetime_leq: new Date().toISOString() } }
+            })
+        });
+
+        if (!res.ok) throw new Error(`查询失败: ${res.status}`);
+        const result = await res.json();
+        if (result.errors?.length) throw new Error(result.errors[0].message);
+
+        const acc = result?.data?.viewer?.accounts?.[0];
+        if (!acc) throw new Error("未找到账户数据");
+
+        const pages = sum(acc.pagesFunctionsInvocationsAdaptiveGroups);
+        const workers = sum(acc.workersInvocationsAdaptive);
+        const total = pages + workers;
+        const max = 100000;
+        console.log(`统计结果 - Pages: ${pages}, Workers: ${workers}, 总计: ${total}, 上限: 100000`);
+        return { success: true, pages, workers, total, max };
+
+    } catch (error) {
+        console.error('获取使用量错误:', error.message);
+        return { success: false, pages: 0, workers: 0, total: 0, max: 100000 };
+    }
 }
 
 ////////////////////////////////HTML页面//////////////////////////////////
@@ -291,6 +416,188 @@ async function UsagePanel主页(TOKEN) {
             color: rgba(255, 255, 255, 0.4);
         }
 
+        /* 管理员登录气泡 */
+        .admin-bubble {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+
+        .admin-bubble:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 32px rgba(99, 102, 241, 0.5);
+        }
+
+        .admin-bubble svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        /* 登录模态框 */
+        .login-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .login-modal-overlay.active {
+            display: flex;
+        }
+
+        .login-modal {
+            background: var(--card-bg);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--stroke);
+            border-radius: 20px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 360px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes modalSlideUp {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .login-modal h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            font-family: 'Outfit', sans-serif;
+            outline: none;
+            transition: all 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .login-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .login-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            text-align: center;
+            display: none;
+        }
+
+        .login-error.show {
+            display: block;
+            animation: shake 0.4s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 50%;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .close-modal:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .login-modal-wrapper {
+            position: relative;
+        }
+
         .toast-notification {
             position: fixed;
             bottom: 2rem;
@@ -359,6 +666,26 @@ async function UsagePanel主页(TOKEN) {
     </style>
 </head>
 <body>
+    <!-- 管理员登录气泡 -->
+    <div class="admin-bubble" onclick="openLoginModal()" title="管理员登录">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+    </div>
+
+    <!-- 登录模态框 -->
+    <div class="login-modal-overlay" id="loginModal">
+        <div class="login-modal-wrapper">
+            <div class="login-modal">
+                <button class="close-modal" onclick="closeLoginModal()">&times;</button>
+                <h2>🔐 管理员登录</h2>
+                <div class="login-error" id="loginError"></div>
+                <input type="password" class="login-input" id="adminPassword" placeholder="请输入管理员密码" onkeydown="if(event.key==='Enter')handleLogin()">
+                <button class="login-btn" id="loginBtn" onclick="handleLogin()">登 录</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="glass-card">
             <header>
@@ -448,6 +775,73 @@ async function UsagePanel主页(TOKEN) {
         }
         
         fetchUsage();
+
+        // 管理员登录相关函数
+        function openLoginModal() {
+            document.getElementById('loginModal').classList.add('active');
+            document.getElementById('adminPassword').focus();
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.remove('active');
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('loginError').classList.remove('show');
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('loginModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeLoginModal();
+            }
+        });
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeLoginModal();
+            }
+        });
+
+        async function handleLogin() {
+            const password = document.getElementById('adminPassword').value;
+            const loginBtn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('loginError');
+
+            if (!password) {
+                errorDiv.textContent = '请输入密码';
+                errorDiv.classList.add('show');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = '登录中...';
+            errorDiv.classList.remove('show');
+
+            try {
+                const response = await fetch('./api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // 登录成功，跳转到管理面板
+                    window.location.href = './admin';
+                } else {
+                    errorDiv.textContent = data.msg || '登录失败';
+                    errorDiv.classList.add('show');
+                    document.getElementById('adminPassword').select();
+                }
+            } catch (err) {
+                errorDiv.textContent = '网络错误，请重试';
+                errorDiv.classList.add('show');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登 录';
+            }
+        }
 
         // 1秒后显示消息气泡
         setTimeout(() => {
