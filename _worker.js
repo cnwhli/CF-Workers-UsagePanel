@@ -4,6 +4,7 @@ export default {
     async fetch(request, env, ctx) {
         const 面板管理员账号 = env.USER || env.user || env.USERNAME || env.username || 'admin';
         const 面板管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd;
+        const 演示样板 = env.DEMO ? true : false;
         if (!面板管理员密码) {
             return new Response('请先在变量中设置 PASSWORD 变量', { status: 500 });
         }
@@ -91,7 +92,15 @@ export default {
                     });
                 }
 
-                if (区分大小写访问路径 === 'api/add') {// 增加CF账号
+                if (区分大小写访问路径 === 'api/logout') {// 登出接口
+                    return new Response(JSON.stringify({ success: true, msg: '登出成功' }), {
+                        status: 200,
+                        headers: {
+                            'Content-Type': 'application/json;charset=UTF-8',
+                            'Set-Cookie': `admin_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`
+                        }
+                    });
+                } else if (区分大小写访问路径 === 'api/add' && !演示样板) {// 增加CF账号
                     try {
                         const newConfig = await request.json();
 
@@ -150,7 +159,7 @@ export default {
                         return new Response(JSON.stringify({ success: false, msg: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                     }
 
-                } else if (区分大小写访问路径 === 'api/del') {// 删除CF账号
+                } else if (区分大小写访问路径 === 'api/del' && !演示样板) {// 删除CF账号
                     try {
                         const body = await request.json();
                         const deleteId = body.ID;
@@ -187,15 +196,7 @@ export default {
                         return new Response(JSON.stringify({ success: false, msg: '删除账号失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                     }
 
-                } else if (区分大小写访问路径 === 'api/logout') {// 登出接口
-                    return new Response(JSON.stringify({ success: true, msg: '登出成功' }), {
-                        status: 200,
-                        headers: {
-                            'Content-Type': 'application/json;charset=UTF-8',
-                            'Set-Cookie': `admin_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`
-                        }
-                    });
-                } else if (区分大小写访问路径 === 'api/check') {// 检查单个CF账号请求量接口
+                } else if (区分大小写访问路径 === 'api/check' && !演示样板) {// 检查单个CF账号请求量接口
                     try {
                         const Usage_JSON = await getCloudflareUsage(url.searchParams.get('Email'), url.searchParams.get('GlobalAPIKey'), url.searchParams.get('AccountID'), url.searchParams.get('APIToken'));
                         return new Response(JSON.stringify(Usage_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -203,6 +204,8 @@ export default {
                         const errorResponse = { msg: '查询请求量失败，失败原因：' + err.message, error: err.message };
                         return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                     }
+                } else if (演示样板) {
+                    return new Response(JSON.stringify({ success: false, msg: '预览模式下，无法进行此操作' }), { status: 403, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                 }
             } else if (访问路径 === 'robots.txt') {
                 return new Response('User-agent: *\nDisallow: /', { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
